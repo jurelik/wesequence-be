@@ -31,19 +31,33 @@ wss.on('connection', function connection(ws, req) {
     }));
   }
 
-  ws.on('message', function incoming(_message) {
-    const message = JSON.parse(_message);
+  ws.on('message', function incoming(_data) {
+    const data = JSON.parse(_data);
 
-    if (message.type === 'SEQ_BUTTON_PRESS') {
-      for (const socket of rooms.test) {
-        if (socket !== ws) {
-          socket.send(JSON.stringify({
-            type: 'SEQ_BUTTON_PRESS',
-            trackName: message.trackName,
-            position: message.position
-          }));
+    switch (data.type) {
+      case 'SEQ_BUTTON_PRESS':
+        for (const socket of rooms.test) {
+          if (socket !== ws) {
+            socket.send(JSON.stringify({
+              type: 'SEQ_BUTTON_PRESS',
+              trackName: data.trackName,
+              position: data.position
+            }));
+          }
         }
-      }
+        break;
+      case 'CHANGE_TEMPO':
+        for (const socket of rooms.test) {
+          if (socket !== ws) {
+            socket.send(JSON.stringify({
+              type: 'CHANGE_TEMPO',
+              tempo: data.tempo
+            }));
+          }
+        }
+        break;
+      default:
+        return null;
     }
   });
 
