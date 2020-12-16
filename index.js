@@ -6,10 +6,19 @@ const rooms = { //Global rooms object
 
 const wss = new WebSocket.Server({ port: PORT  });
 
+const sendToRoom = (payload, ws) => {
+  for (const socket of rooms[ws.room]) {
+    if (socket !== ws) {
+      socket.send(JSON.stringify(payload));
+    }
+  }
+}
+
 wss.on('connection', function connection(ws, req) {
   if (req.url === '/test') {
-    // Add client to room
+    // Add client to room & room to client
     rooms.test.push(ws);
+    ws.room = req.url.substr(1);
 
     ws.send(JSON.stringify({
       type: 'init',
@@ -36,25 +45,17 @@ wss.on('connection', function connection(ws, req) {
 
     switch (data.type) {
       case 'SEQ_BUTTON_PRESS':
-        for (const socket of rooms.test) {
-          if (socket !== ws) {
-            socket.send(JSON.stringify({
-              type: 'SEQ_BUTTON_PRESS',
-              trackName: data.trackName,
-              position: data.position
-            }));
-          }
-        }
+        sendToRoom({
+          type: 'SEQ_BUTTON_PRESS',
+          trackName: data.trackName,
+          position: data.position
+        }, ws);
         break;
       case 'CHANGE_TEMPO':
-        for (const socket of rooms.test) {
-          if (socket !== ws) {
-            socket.send(JSON.stringify({
-              type: 'CHANGE_TEMPO',
-              tempo: data.tempo
-            }));
-          }
-        }
+        sendToRoom({
+          type: 'CHANGE_TEMPO',
+          tempo: data.tempo
+        }, ws);
         break;
       default:
         return null;
