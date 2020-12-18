@@ -4,3 +4,5 @@ tags.lock
 tags.temp
 *.swp
 *.tmp
+.env.development
+.env.production

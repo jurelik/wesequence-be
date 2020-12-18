@@ -1,10 +1,12 @@
+require('dotenv-flow').config();
 const WebSocket = require('ws');
-const PORT = 8080;
 const rooms = { //Global rooms object
   test: []
 }
 
-const wss = new WebSocket.Server({ port: PORT  });
+console.log(process.env.PORT)
+
+const wss = new WebSocket.Server({ port: process.env.PORT  });
 
 const sendToRoom = (payload, ws) => {
   for (const socket of rooms[ws.room]) {
@@ -68,5 +70,5 @@ wss.on('connection', function connection(ws, req) {
 });
 
 wss.on('listening', () => {
-  console.log('Server is listening on port ' + PORT + '.');
+  console.log('Server is listening on port ' + process.env.PORT + '.');
 })
