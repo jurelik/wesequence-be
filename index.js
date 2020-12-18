@@ -10,19 +10,27 @@ const rooms = { //Global rooms object
 const wss = new WebSocket.Server({ port: process.env.PORT  });
 const db = new Sequelize(`postgres://${process.env.DB_USER}@${process.env.DB_URL}:5432/${process.env.DB_NAME}`)
 
-models.sequelize.sync().then(() => {
-  console.log('sync success')
-}).catch(err => {
-  console.error(err);
-})
-
-//db.authenticate().then(() => {
-//  console.log('Connection has been established successfully.');
-//}).catch(error => {
-//  console.error('Unable to connect to the database:', error);
-//})
-
 //Helper functions
+const dbINIT = () => {
+  models.sequelize.sync().then(async () => {
+    const t = await db.transaction();
+
+    try {
+      await db.query(`INSERT INTO rooms (name, "createdAt", "updatedAt") VALUES ('test', NOW(), NOW())`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
+      await db.query(`INSERT INTO scenes (num, "createdAt", "updatedAt", "roomId") VALUES (0, NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
+      await db.query(`INSERT INTO tracks (name, url, sequence, "createdAt", "updatedAt", "sceneId") VALUES ('kick', 'https://postead.s3.eu-west-2.amazonaws.com/kick.wav', ARRAY [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0], NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
+      await t.commit();
+    }
+    catch (err) {
+      await t.rollback();
+      console.log(err);
+    }
+  }).catch(err => {
+    console.error(err);
+  });
+
+}
+
 const sendToRoom = (payload, ws) => {
   for (const socket of rooms[ws.room]) {
     if (socket !== ws) {
@@ -31,7 +39,9 @@ const sendToRoom = (payload, ws) => {
   }
 }
 
-wss.on('connection', function connection(ws, req) {
+dbINIT(); //Uncomment only when initialising db
+
+wss.on('connection', async (ws, req) => {
   if (req.url === '/test') {
     // Add client to room & room to client
     rooms.test.push(ws);
@@ -84,6 +94,6 @@ wss.on('connection', function connection(ws, req) {
   })
 });
 
-wss.on('listening', () => {
+wss.on('listening', async () => {
   console.log('Server is listening on port ' + process.env.PORT + '.');
 })
