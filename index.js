@@ -1,13 +1,28 @@
 require('dotenv-flow').config();
 const WebSocket = require('ws');
+const { Sequelize } = require('sequelize');
+const models = require('./models');
+
 const rooms = { //Global rooms object
   test: []
 }
 
-console.log(process.env.PORT)
-
 const wss = new WebSocket.Server({ port: process.env.PORT  });
+const db = new Sequelize(`postgres://${process.env.DB_USER}@${process.env.DB_URL}:5432/${process.env.DB_NAME}`)
 
+models.sequelize.sync().then(() => {
+  console.log('sync success')
+}).catch(err => {
+  console.error(err);
+})
+
+//db.authenticate().then(() => {
+//  console.log('Connection has been established successfully.');
+//}).catch(error => {
+//  console.error('Unable to connect to the database:', error);
+//})
+
+//Helper functions
 const sendToRoom = (payload, ws) => {
   for (const socket of rooms[ws.room]) {
     if (socket !== ws) {
