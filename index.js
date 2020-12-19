@@ -1,38 +1,41 @@
 require('dotenv-flow').config();
 const WebSocket = require('ws');
 const { Sequelize } = require('sequelize');
-const models = require('./models');
 const helpers = require('./helpers');
 
 const wss = new WebSocket.Server({ port: process.env.PORT  });
 const db = new Sequelize(`postgres://${process.env.DB_USER}@${process.env.DB_URL}:5432/${process.env.DB_NAME}`)
 
-//helpers.dbINIT(); //Uncomment only when initialising db
+//helpers.dbINIT(db); //Uncomment only when initialising db
 
 wss.on('connection', async (ws, req) => {
-  if (req.url === '/test') {
-    // Add client to room & room to client
-    helpers.rooms.test.push(ws);
-    ws.room = req.url.substr(1);
+  const room = req.url.substr(1);
+
+  try {
+    //Check if room exists
+    const rooms = await db.query(`SELECT id FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
+    if (rooms.length === 0) {
+      throw 'Room not found.'
+    }
+
+    //Add client to room & room to client
+    if (!helpers.rooms[room]) {
+      //Create room first
+      helpers.rooms[room] = [];
+    }
+    helpers.rooms[room].push(ws);
+    ws.room = room
+
+    //Get all tracks in the first scene
+    const tracks = await db.query(`SELECT t.name, t.url, t.sequence FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0`, { type: Sequelize.QueryTypes.SELECT });
 
     ws.send(JSON.stringify({
       type: 'init',
-      scenes: [ [{
-        name: 'kick',
-        url: 'https://postead.s3.eu-west-2.amazonaws.com/kick.wav',
-        sequence: [ 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0 ]
-      }, {
-        name: 'hh',
-        url: 'https://postead.s3.eu-west-2.amazonaws.com/hh.wav',
-        sequence: [ 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0 ]
-      }] ]
+      scenes: [ tracks ]
     }));
   }
-  else {
-    ws.send(JSON.stringify({
-      type: 'init',
-      scenes: []
-    }));
+  catch (err) {
+    console.log(err);
   }
 
   ws.on('message', function incoming(_data) {
