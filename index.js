@@ -60,6 +60,12 @@ wss.on('connection', async (ws, req) => {
           type: 'ADD_TRACK'
         }, ws);
         break;
+      case 'DELETE_TRACK':
+        helpers.sendToRoom({
+          type: 'DELETE_TRACK',
+          trackName: data.trackName
+        }, ws);
+        break;
       default:
         return null;
     }
