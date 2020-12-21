@@ -40,13 +40,17 @@ const sendToRoomAll = (payload, ws) => {
 }
 
 const addTrack = async (ws) => {
+  const t = await db.transaction();
+
   try {
-    const queryTracks = await db.query(`SELECT COUNT(*), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT });
+    const queryTracks = await db.query(`SELECT COUNT(*), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
     const trackAmount = queryTracks[0].count;
     const sceneId = queryTracks[0].sceneId
 
-    const newTrackQuery = await db.query(`INSERT INTO tracks (name, "createdAt", "updatedAt", "sceneId") VALUES ('Track ${trackAmount + 1}', NOW(), NOW(), ${sceneId}) RETURNING id AS "trackId", name AS "trackName" `, { type: Sequelize.QueryTypes.INSERT });
+    const newTrackQuery = await db.query(`INSERT INTO tracks (name, "createdAt", "updatedAt", "sceneId") VALUES ('Track ${trackAmount + 1}', NOW(), NOW(), ${sceneId}) RETURNING id AS "trackId", name AS "trackName" `, { type: Sequelize.QueryTypes.INSERT, transaction: t });
     const newTrack = newTrackQuery[0][0];
+
+    await t.commit();
 
     sendToRoomAll({
       type: 'ADD_TRACK',
@@ -55,6 +59,7 @@ const addTrack = async (ws) => {
     }, ws)
   }
   catch (err) {
+    await t.rollback();
     console.log(err)
   }
 }
