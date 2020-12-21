@@ -45,7 +45,7 @@ wss.on('connection', async (ws, req) => {
       case 'SEQ_BUTTON_PRESS':
         helpers.sendToRoom({
           type: 'SEQ_BUTTON_PRESS',
-          trackName: data.trackName,
+          trackId: data.trackId,
           position: data.position
         }, ws);
         break;
