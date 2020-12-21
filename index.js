@@ -1,15 +1,12 @@
 require('dotenv-flow').config();
 const WebSocket = require('ws');
 const { Sequelize } = require('sequelize');
+let db = require('./db');
 const helpers = require('./helpers');
 
-//This command makes COUNT return integers instead of strings
-require('pg').defaults.parseInt8 = true;
-
 const wss = new WebSocket.Server({ port: process.env.PORT  });
-const db = new Sequelize(`postgres://${process.env.DB_USER}@${process.env.DB_URL}:5432/${process.env.DB_NAME}`)
 
-//helpers.dbINIT(db); //Uncomment only when initialising db
+//helpers.dbINIT(); //Uncomment only when initialising db
 
 wss.on('connection', async (ws, req) => {
   const room = req.url.substr(1);
@@ -59,13 +56,10 @@ wss.on('connection', async (ws, req) => {
         }, ws);
         break;
       case 'ADD_TRACK':
-        helpers.addTrack(ws, db);
+        helpers.addTrack(ws);
         break;
       case 'DELETE_TRACK':
-        helpers.sendToRoom({
-          type: 'DELETE_TRACK',
-          trackId: data.trackId
-        }, ws);
+        helpers.deleteTrack(data.trackId, ws);
         break;
       default:
         return null;

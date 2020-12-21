@@ -1,10 +1,11 @@
 const { Sequelize } = require('sequelize');
+const db = require('../db');
 const models = require('../models');
 const rooms = { //Global rooms object
   test: []
 }
 
-const dbINIT = (db) => {
+const dbINIT = () => {
   models.sequelize.sync().then(async () => {
     const t = await db.transaction();
 
@@ -38,7 +39,7 @@ const sendToRoomAll = (payload, ws) => {
   }
 }
 
-const addTrack = async (ws, db) => {
+const addTrack = async (ws) => {
   try {
     const queryTracks = await db.query(`SELECT COUNT(*), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT });
     const trackAmount = queryTracks[0].count;
@@ -58,10 +59,29 @@ const addTrack = async (ws, db) => {
   }
 }
 
+const deleteTrack = async (trackId, ws) => {
+  const t = await db.transaction();
+
+  try {
+    await db.query(`DELETE FROM tracks WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
+    await t.commit();
+
+    sendToRoom({
+      type: 'DELETE_TRACK',
+      trackId: trackId
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
+}
+
 module.exports = {
   rooms,
   dbINIT,
   sendToRoom,
   sendToRoomAll,
-  addTrack
+  addTrack,
+  deleteTrack
 }
