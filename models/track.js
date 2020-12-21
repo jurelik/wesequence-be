@@ -20,12 +20,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     url: {
-      type: DataTypes.STRING,
-      allowNull: false
+      type: DataTypes.STRING
     },
     sequence: {
       type: DataTypes.ARRAY(DataTypes.INTEGER),
-      allowNull: false
+      allowNull: false,
+      defaultValue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     }
   }, {
     sequelize,

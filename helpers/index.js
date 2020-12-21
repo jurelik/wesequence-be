@@ -32,8 +32,36 @@ const sendToRoom = (payload, ws) => {
   }
 }
 
+const sendToRoomAll = (payload, ws) => {
+  for (const socket of rooms[ws.room]) {
+    socket.send(JSON.stringify(payload));
+  }
+}
+
+const addTrack = async (ws, db) => {
+  try {
+    const queryTracks = await db.query(`SELECT COUNT(*), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT });
+    const trackAmount = queryTracks[0].count;
+    const sceneId = queryTracks[0].sceneId
+
+    const newTrackQuery = await db.query(`INSERT INTO tracks (name, "createdAt", "updatedAt", "sceneId") VALUES ('Track ${trackAmount + 1}', NOW(), NOW(), ${sceneId}) RETURNING id AS "trackId", name AS "trackName" `, { type: Sequelize.QueryTypes.INSERT });
+    const newTrack = newTrackQuery[0][0];
+
+    sendToRoomAll({
+      type: 'ADD_TRACK',
+      trackId: newTrack.trackId,
+      trackName: newTrack.trackName
+    }, ws)
+  }
+  catch (err) {
+    console.log(err)
+  }
+}
+
 module.exports = {
   rooms,
   dbINIT,
-  sendToRoom
+  sendToRoom,
+  sendToRoomAll,
+  addTrack
 }

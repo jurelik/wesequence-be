@@ -3,6 +3,9 @@ const WebSocket = require('ws');
 const { Sequelize } = require('sequelize');
 const helpers = require('./helpers');
 
+//This command makes COUNT return integers instead of strings
+require('pg').defaults.parseInt8 = true;
+
 const wss = new WebSocket.Server({ port: process.env.PORT  });
 const db = new Sequelize(`postgres://${process.env.DB_USER}@${process.env.DB_URL}:5432/${process.env.DB_NAME}`)
 
@@ -27,7 +30,7 @@ wss.on('connection', async (ws, req) => {
     ws.room = room
 
     //Get all tracks in the first scene
-    const tracks = await db.query(`SELECT t.name, t.url, t.sequence FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0`, { type: Sequelize.QueryTypes.SELECT });
+    const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0`, { type: Sequelize.QueryTypes.SELECT });
 
     ws.send(JSON.stringify({
       type: 'init',
@@ -56,9 +59,7 @@ wss.on('connection', async (ws, req) => {
         }, ws);
         break;
       case 'ADD_TRACK':
-        helpers.sendToRoom({
-          type: 'ADD_TRACK'
-        }, ws);
+        helpers.addTrack(ws, db);
         break;
       case 'DELETE_TRACK':
         helpers.sendToRoom({
