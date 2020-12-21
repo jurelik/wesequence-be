@@ -55,6 +55,11 @@ wss.on('connection', async (ws, req) => {
           tempo: data.tempo
         }, ws);
         break;
+      case 'ADD_TRACK':
+        helpers.sendToRoom({
+          type: 'ADD_TRACK'
+        }, ws);
+        break;
       default:
         return null;
     }
