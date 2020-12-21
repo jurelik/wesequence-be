@@ -27,7 +27,7 @@ wss.on('connection', async (ws, req) => {
     ws.room = room
 
     //Get all tracks in the first scene
-    const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0`, { type: Sequelize.QueryTypes.SELECT });
+    const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0 ORDER BY t."createdAt" ASC `, { type: Sequelize.QueryTypes.SELECT });
 
     ws.send(JSON.stringify({
       type: 'init',
@@ -43,11 +43,7 @@ wss.on('connection', async (ws, req) => {
 
     switch (data.type) {
       case 'SEQ_BUTTON_PRESS':
-        helpers.sendToRoom({
-          type: 'SEQ_BUTTON_PRESS',
-          trackId: data.trackId,
-          position: data.position
-        }, ws);
+        helpers.seqButtonPress(data.trackId, data.position, ws);
         break;
       case 'CHANGE_TEMPO':
         helpers.sendToRoom({

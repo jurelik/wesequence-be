@@ -39,6 +39,26 @@ const sendToRoomAll = (payload, ws) => {
   }
 }
 
+const seqButtonPress = async (trackId, position, ws) => {
+  const t = await db.transaction();
+  try {
+    const seq = await db.query (`SELECT name, sequence FROM tracks WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+
+    const test = await db.query(`UPDATE tracks SET sequence[${position + 1}] = CASE WHEN sequence[${position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${trackId} RETURNING sequence`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await t.commit();
+
+    sendToRoom({
+      type: 'SEQ_BUTTON_PRESS',
+      trackId,
+      position
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
+}
+
 const addTrack = async (ws) => {
   const t = await db.transaction();
 
@@ -87,6 +107,7 @@ module.exports = {
   dbINIT,
   sendToRoom,
   sendToRoomAll,
+  seqButtonPress,
   addTrack,
   deleteTrack
 }
