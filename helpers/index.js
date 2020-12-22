@@ -1,10 +1,16 @@
 const { Sequelize } = require('sequelize');
+const { S3, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { nanoid } = require('nanoid');
 const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
 const rooms = { //Global rooms object
   test: []
 }
+
+//Init connection to AWS S3
+const REGION = 'eu-west-2';
+const s3 = new S3({ region: REGION });
 
 const dbINIT = () => {
   models.sequelize.sync().then(async () => {
@@ -27,7 +33,7 @@ const dbINIT = () => {
 }
 
 // Taken from: https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
-const stringToBuffer = (str) => {
+const stringToArraybuffer = (str) => {
   var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
   var bufView = new Uint16Array(buf);
 
@@ -52,10 +58,33 @@ const sendToRoomAll = (payload, ws) => {
   }
 }
 
-const changeSound = (data, ws) => {
-  const arraybuffer = stringToBuffer(data.arraybuffer);
-  console.log(arraybuffer);
-  fs.appendFileSync('test.wav', new Buffer(arraybuffer));
+const changeSound = async (data, ws) => {
+  const t = await db.transaction();
+
+  try {
+    const arraybuffer = stringToArraybuffer(data.arraybuffer);
+    const key = `${nanoid()}.wav`;
+    const bucketName = 'postead'
+
+    //Upload to s3
+    const uploadFile = await s3.send(new PutObjectCommand({ Bucket: 'postead', Key: key, Body: arraybuffer }));
+    const fileURL = `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
+
+    //Update db
+    await db.query(`UPDATE tracks SET url = '${fileURL}' WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await t.commit();
+
+    //Send to other sockets in room
+    sendToRoom({
+      type: 'CHANGE_SOUND',
+      trackId: data.trackId,
+      arraybuffer: data.arraybuffer
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
 }
 
 const seqButtonPress = async (trackId, position, ws) => {
@@ -123,7 +152,7 @@ const deleteTrack = async (trackId, ws) => {
 module.exports = {
   rooms,
   dbINIT,
-  stringToBuffer,
+  stringToArraybuffer,
   sendToRoom,
   sendToRoomAll,
   changeSound,
