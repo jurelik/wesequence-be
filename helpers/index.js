@@ -1,4 +1,5 @@
 const { Sequelize } = require('sequelize');
+const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
 const rooms = { //Global rooms object
@@ -25,6 +26,18 @@ const dbINIT = () => {
   });
 }
 
+// Taken from: https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+const stringToBuffer = (str) => {
+  var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+  var bufView = new Uint16Array(buf);
+
+  for (var i=0, strLen=str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+
+  return buf;
+}
+
 const sendToRoom = (payload, ws) => {
   for (const socket of rooms[ws.room]) {
     if (socket !== ws) {
@@ -39,12 +52,16 @@ const sendToRoomAll = (payload, ws) => {
   }
 }
 
+const changeSound = (data, ws) => {
+  const arraybuffer = stringToBuffer(data.arraybuffer);
+  console.log(arraybuffer);
+  fs.appendFileSync('test.wav', new Buffer(arraybuffer));
+}
+
 const seqButtonPress = async (trackId, position, ws) => {
   const t = await db.transaction();
   try {
-    const seq = await db.query (`SELECT name, sequence FROM tracks WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
-
-    const test = await db.query(`UPDATE tracks SET sequence[${position + 1}] = CASE WHEN sequence[${position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${trackId} RETURNING sequence`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await db.query(`UPDATE tracks SET sequence[${position + 1}] = CASE WHEN sequence[${position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
     await t.commit();
 
     sendToRoom({
@@ -67,6 +84,7 @@ const addTrack = async (ws) => {
     const trackAmount = queryTracks[0].count;
     const sceneId = queryTracks[0].sceneId
 
+    //BE CAREFUL - postgres uses one based arrays!
     const newTrackQuery = await db.query(`INSERT INTO tracks (name, "createdAt", "updatedAt", "sceneId") VALUES ('Track ${trackAmount + 1}', NOW(), NOW(), ${sceneId}) RETURNING id AS "trackId", name AS "trackName" `, { type: Sequelize.QueryTypes.INSERT, transaction: t });
     const newTrack = newTrackQuery[0][0];
 
@@ -105,8 +123,10 @@ const deleteTrack = async (trackId, ws) => {
 module.exports = {
   rooms,
   dbINIT,
+  stringToBuffer,
   sendToRoom,
   sendToRoomAll,
+  changeSound,
   seqButtonPress,
   addTrack,
   deleteTrack

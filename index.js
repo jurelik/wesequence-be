@@ -51,6 +51,9 @@ wss.on('connection', async (ws, req) => {
           tempo: data.tempo
         }, ws);
         break;
+      case 'CHANGE_SOUND':
+        helpers.changeSound(data, ws);
+        break;
       case 'ADD_TRACK':
         helpers.addTrack(ws);
         break;
