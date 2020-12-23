@@ -18,6 +18,11 @@ module.exports = (sequelize, DataTypes) => {
     name: {
       type: DataTypes.STRING,
       allowNull: false
+    },
+    tempo: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 120
     }
   }, {
     sequelize,

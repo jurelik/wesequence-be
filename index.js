@@ -12,11 +12,12 @@ wss.on('connection', async (ws, req) => {
   const room = req.url.substr(1);
 
   try {
-    //Check if room exists
-    const rooms = await db.query(`SELECT id FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
+    //Check if room exists & get tempo
+    const rooms = await db.query(`SELECT tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
     if (rooms.length === 0) {
       throw 'Room not found.'
     }
+    const tempo = rooms[0].tempo;
 
     //Add client to room & room to client
     if (!helpers.rooms[room]) {
@@ -31,6 +32,7 @@ wss.on('connection', async (ws, req) => {
 
     ws.send(JSON.stringify({
       type: 'init',
+      tempo,
       scenes: [ tracks ]
     }));
   }
