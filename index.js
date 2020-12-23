@@ -48,10 +48,7 @@ wss.on('connection', async (ws, req) => {
         helpers.seqButtonPress(data.trackId, data.position, ws);
         break;
       case 'CHANGE_TEMPO':
-        helpers.sendToRoom({
-          type: 'CHANGE_TEMPO',
-          tempo: data.tempo
-        }, ws);
+        helpers.changeTempo(data.tempo, ws);
         break;
       case 'CHANGE_SOUND':
         helpers.changeSound(data, ws);

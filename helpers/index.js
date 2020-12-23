@@ -58,6 +58,30 @@ const sendToRoomAll = (payload, ws) => {
   }
 }
 
+const changeTempo = async (tempo, ws) => {
+  const t = await db.transaction();
+
+  try {
+    //Make sure tempo is above 50
+    tempo = tempo < 50 ? 50 : tempo;
+
+    //Update db
+    await db.query(`UPDATE rooms SET tempo = ${tempo} WHERE name = '${ws.room}'`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await t.commit();
+
+    //Send to other sockets in room
+    sendToRoom({
+      type: 'CHANGE_TEMPO',
+      tempo
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
+
+}
+
 const changeSound = async (data, ws) => {
   const t = await db.transaction();
 
@@ -155,6 +179,7 @@ module.exports = {
   stringToArraybuffer,
   sendToRoom,
   sendToRoomAll,
+  changeTempo,
   changeSound,
   seqButtonPress,
   addTrack,
