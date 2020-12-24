@@ -133,7 +133,8 @@ const addTrack = async (ws) => {
   const t = await db.transaction();
 
   try {
-    const queryTracks = await db.query(`SELECT COUNT(*), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+    const queryTracks = await db.query(`SELECT COUNT(t.id), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id LEFT JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+    console.log(queryTracks);
     const trackAmount = queryTracks[0].count;
     const sceneId = queryTracks[0].sceneId
 
