@@ -111,8 +111,28 @@ const changeSound = async (data, ws) => {
   }
 }
 
+const changeGain = async (data, ws) => {
+  const t = await db.transaction();
+
+  try {
+    await db.query(`UPDATE tracks SET gain = ${data.gain} WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await t.commit();
+
+    sendToRoom({
+      type: 'CHANGE_GAIN',
+      trackId: data.trackId,
+      gain: data.gain
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
+}
+
 const seqButtonPress = async (trackId, position, ws) => {
   const t = await db.transaction();
+
   try {
     await db.query(`UPDATE tracks SET sequence[${position + 1}] = CASE WHEN sequence[${position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
     await t.commit();
@@ -182,6 +202,7 @@ module.exports = {
   sendToRoomAll,
   changeTempo,
   changeSound,
+  changeGain,
   seqButtonPress,
   addTrack,
   deleteTrack

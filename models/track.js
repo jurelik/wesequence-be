@@ -26,6 +26,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ARRAY(DataTypes.INTEGER),
       allowNull: false,
       defaultValue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    gain: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 100
     }
   }, {
     sequelize,

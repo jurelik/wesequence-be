@@ -28,7 +28,7 @@ wss.on('connection', async (ws, req) => {
     ws.room = room
 
     //Get all tracks in the first scene
-    const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0 ORDER BY t."createdAt" ASC `, { type: Sequelize.QueryTypes.SELECT });
+    const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence, t.gain FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0 ORDER BY t."createdAt" ASC `, { type: Sequelize.QueryTypes.SELECT });
 
     ws.send(JSON.stringify({
       type: 'init',
@@ -52,6 +52,9 @@ wss.on('connection', async (ws, req) => {
         break;
       case 'CHANGE_SOUND':
         helpers.changeSound(data, ws);
+        break;
+      case 'CHANGE_GAIN':
+        helpers.changeGain(data, ws);
         break;
       case 'ADD_TRACK':
         helpers.addTrack(ws);
