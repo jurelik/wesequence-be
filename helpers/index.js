@@ -34,14 +34,15 @@ const dbINIT = () => {
 
 // Taken from: https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
 const stringToArraybuffer = (str) => {
-  var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
-  var bufView = new Uint16Array(buf);
+  return new TextEncoder().encode(str);
+  //var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+  //var bufView = new Uint16Array(buf);
 
-  for (var i=0, strLen=str.length; i < strLen; i++) {
-    bufView[i] = str.charCodeAt(i);
-  }
+  //for (var i=0, strLen=str.length; i < strLen; i++) {
+  //  bufView[i] = str.charCodeAt(i);
+  //}
 
-  return buf;
+  //return buf;
 }
 
 const sendToRoom = (payload, ws) => {
@@ -87,11 +88,17 @@ const changeSound = async (data, ws) => {
 
   try {
     const arraybuffer = stringToArraybuffer(data.arraybuffer);
+
+    //Check if the file is bigger then 2MB
+    if (arraybuffer.byteLength > 2000000) {
+      throw 'File too big to upload.'
+    }
+
     const key = `${nanoid()}.wav`;
     const bucketName = 'postead'
 
     //Upload to s3
-    const uploadFile = await s3.send(new PutObjectCommand({ Bucket: 'postead', Key: key, Body: arraybuffer }));
+    await s3.send(new PutObjectCommand({ Bucket: 'postead', Key: key, Body: arraybuffer }));
     const fileURL = `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
 
     //Update db
