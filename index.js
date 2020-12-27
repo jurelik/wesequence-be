@@ -13,11 +13,12 @@ wss.on('connection', async (ws, req) => {
 
   try {
     //Check if room exists & get tempo
-    const rooms = await db.query(`SELECT tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
+    const rooms = await db.query(`SELECT id, tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
     if (rooms.length === 0) {
       throw 'Room not found.'
     }
     const tempo = rooms[0].tempo;
+    const roomId = rooms[0].id;
 
     //Add client to room & room to client
     if (!helpers.rooms[room]) {
@@ -28,12 +29,20 @@ wss.on('connection', async (ws, req) => {
     ws.room = room
 
     //Get all tracks in the first scene
-    const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence, t.gain FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' AND s.num = 0 ORDER BY t."createdAt" ASC `, { type: Sequelize.QueryTypes.SELECT });
+    //const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence, t.gain FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' ORDER BY t."createdAt" ASC `, { type: Sequelize.QueryTypes.SELECT });
+    //
+    const sceneIds = await db.query(`SELECT id FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
+    let scenes = [];
+
+    for (let scene of sceneIds) {
+      const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT });
+      scenes.push(tracks);
+    }
 
     ws.send(JSON.stringify({
       type: 'init',
       tempo,
-      scenes: [ tracks ]
+      scenes
     }));
   }
   catch (err) {
