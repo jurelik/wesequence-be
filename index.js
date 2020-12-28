@@ -51,7 +51,7 @@ wss.on('connection', async (ws, req) => {
 
     switch (data.type) {
       case 'SEQ_BUTTON_PRESS':
-        helpers.seqButtonPress(data.trackId, data.position, ws);
+        helpers.seqButtonPress(data, ws);
         break;
       case 'CHANGE_TEMPO':
         helpers.changeTempo(data.tempo, ws);

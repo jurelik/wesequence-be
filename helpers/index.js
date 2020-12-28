@@ -139,17 +139,18 @@ const changeGain = async (data, ws) => {
   }
 }
 
-const seqButtonPress = async (trackId, position, ws) => {
+const seqButtonPress = async (data, ws) => {
   const t = await db.transaction();
 
   try {
-    await db.query(`UPDATE tracks SET sequence[${position + 1}] = CASE WHEN sequence[${position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await db.query(`UPDATE tracks SET sequence[${data.position + 1}] = CASE WHEN sequence[${data.position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
     await t.commit();
 
     sendToRoom({
       type: 'SEQ_BUTTON_PRESS',
-      trackId,
-      position
+      sceneId: data.sceneId,
+      trackId: data.trackId,
+      position: data.position
     }, ws);
   }
   catch (err) {
