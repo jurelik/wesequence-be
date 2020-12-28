@@ -28,15 +28,12 @@ wss.on('connection', async (ws, req) => {
     helpers.rooms[room].push(ws);
     ws.room = room
 
-    //Get all tracks in the first scene
-    //const tracks = await db.query(`SELECT t.id, t.name, t.url, t.sequence, t.gain FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${room}' ORDER BY t."createdAt" ASC `, { type: Sequelize.QueryTypes.SELECT });
-    //
-    const sceneIds = await db.query(`SELECT id FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
-    let scenes = [];
+    //Get all scenes and tracks
+    const scenes = await db.query(`SELECT id FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
 
-    for (let scene of sceneIds) {
+    for (let scene of scenes) {
       const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT });
-      scenes.push(tracks);
+      scene.tracks = tracks;
     }
 
     ws.send(JSON.stringify({
@@ -66,10 +63,10 @@ wss.on('connection', async (ws, req) => {
         helpers.changeGain(data, ws);
         break;
       case 'ADD_TRACK':
-        helpers.addTrack(ws);
+        helpers.addTrack(data, ws);
         break;
       case 'DELETE_TRACK':
-        helpers.deleteTrack(data.trackId, ws);
+        helpers.deleteTrack(data, ws);
         break;
       default:
         return null;

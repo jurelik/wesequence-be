@@ -158,12 +158,11 @@ const seqButtonPress = async (trackId, position, ws) => {
   }
 }
 
-const addTrack = async (ws) => {
+const addTrack = async (data, ws) => {
   const t = await db.transaction();
 
   try {
-    const queryTracks = await db.query(`SELECT COUNT(t.id), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id LEFT JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.num = 0 GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
-    console.log(queryTracks);
+    const queryTracks = await db.query(`SELECT COUNT(t.id), s.id AS "sceneId" FROM rooms AS r JOIN scenes AS s ON s."roomId" = r.id LEFT JOIN tracks AS t ON t."sceneId" = s.id WHERE r.name = '${ws.room}' AND s.id = ${data.sceneId} GROUP BY r.id, s.id`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
     const trackAmount = queryTracks[0].count;
     const sceneId = queryTracks[0].sceneId
 
@@ -175,6 +174,7 @@ const addTrack = async (ws) => {
 
     sendToRoomAll({
       type: 'ADD_TRACK',
+      sceneId: data.sceneId,
       trackId: newTrack.trackId,
       trackName: newTrack.trackName
     }, ws)
@@ -185,16 +185,17 @@ const addTrack = async (ws) => {
   }
 }
 
-const deleteTrack = async (trackId, ws) => {
+const deleteTrack = async (data, ws) => {
   const t = await db.transaction();
 
   try {
-    await db.query(`DELETE FROM tracks WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
+    await db.query(`DELETE FROM tracks WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
     await t.commit();
 
     sendToRoom({
       type: 'DELETE_TRACK',
-      trackId: trackId
+      sceneId: data.sceneId,
+      trackId: data.trackId
     }, ws);
   }
   catch (err) {
