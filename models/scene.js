@@ -16,10 +16,6 @@ module.exports = (sequelize, DataTypes) => {
     }
   };
   scene.init({
-    num: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    }
   }, {
     sequelize,
     modelName: 'scene',
