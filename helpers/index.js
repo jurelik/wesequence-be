@@ -110,6 +110,7 @@ const changeSound = async (data, ws) => {
     //Send to other sockets in room
     sendToRoom({
       type: 'CHANGE_SOUND',
+      sceneId: data.sceneId,
       trackId: data.trackId,
       arraybuffer: data.arraybuffer
     }, ws);
@@ -129,6 +130,7 @@ const changeGain = async (data, ws) => {
 
     sendToRoom({
       type: 'CHANGE_GAIN',
+      sceneId: data.sceneId,
       trackId: data.trackId,
       gain: data.gain
     }, ws);
