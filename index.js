@@ -9,6 +9,7 @@ const wss = new WebSocket.Server({ port: process.env.PORT  });
 //helpers.dbINIT(); //Uncomment only when initialising db
 
 wss.on('connection', async (ws, req) => {
+  console.log('Client connected');
   const room = req.url.substr(1);
 
   try {
