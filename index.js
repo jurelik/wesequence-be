@@ -26,7 +26,8 @@ wss.on('connection', async (ws, req) => {
       helpers.rooms[room] = [];
     }
     helpers.rooms[room].push(ws);
-    ws.room = room
+    ws.room = room;
+    ws.roomId = roomId;
 
     //Get all scenes and tracks
     const scenes = await db.query(`SELECT id FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
@@ -67,6 +68,9 @@ wss.on('connection', async (ws, req) => {
         break;
       case 'DELETE_TRACK':
         helpers.deleteTrack(data, ws);
+        break;
+      case 'ADD_SCENE':
+        helpers.addScene(ws);
         break;
       default:
         return null;
