@@ -11,7 +11,7 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       // define association here
-      track.belongsTo(models.scene);
+      track.belongsTo(models.scene, { onDelete: 'CASCADE' });
     }
   };
   track.init({

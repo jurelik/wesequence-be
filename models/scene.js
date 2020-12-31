@@ -12,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       // define association here
       scene.belongsTo(models.room);
-      scene.hasMany(models.track);
+      scene.hasMany(models.track, { onDelete: 'CASCADE' });
     }
   };
   scene.init({

@@ -227,6 +227,24 @@ const addScene = async (ws) => {
   }
 }
 
+const deleteScene = async (data, ws) => {
+  const t = await db.transaction();
+
+  try {
+    await db.query(`DELETE FROM scenes WHERE id = ${data.sceneId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
+    await t.commit();
+
+    sendToRoom({
+      type: 'DELETE_SCENE',
+      sceneId: data.sceneId
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
+}
+
 module.exports = {
   rooms,
   dbINIT,
@@ -239,5 +257,6 @@ module.exports = {
   seqButtonPress,
   addTrack,
   deleteTrack,
-  addScene
+  addScene,
+  deleteScene
 }
