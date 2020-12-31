@@ -33,7 +33,7 @@ wss.on('connection', async (ws, req) => {
     const scenes = await db.query(`SELECT id FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
 
     for (let scene of scenes) {
-      const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT });
+      const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
       scene.tracks = tracks;
     }
 
