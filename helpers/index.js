@@ -212,7 +212,6 @@ const addScene = async (ws) => {
 
   try {
     const scene = await db.query(`INSERT INTO scenes ("roomId", "createdAt", "updatedAt") VALUES (${ws.roomId}, NOW(), NOW()) RETURNING id`, { type: Sequelize.QueryTypes.INSERT, transaction: t });
-    console.log(scene)
 
     await t.commit();
 
@@ -231,6 +230,12 @@ const deleteScene = async (data, ws) => {
   const t = await db.transaction();
 
   try {
+    const countScenes = await db.query(`SELECT COUNT(id) FROM scenes WHERE "roomId" = ${ws.roomId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
+
+    if (countScenes[0].count < 2) {
+      throw 'The last scene cannot be deleted.';
+    }
+
     await db.query(`DELETE FROM scenes WHERE id = ${data.sceneId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
     await t.commit();
 
