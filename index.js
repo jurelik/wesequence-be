@@ -1,5 +1,6 @@
 require('dotenv-flow').config();
 const express = require('express');
+var cors = require('cors');
 const app = express();
 const WebSocket = require('ws');
 const { Sequelize } = require('sequelize');
@@ -24,6 +25,8 @@ WebSocket.Server.prototype.shouldHandle = function shouldHandle(req) {
 
   return false;
 }
+
+app.use(cors());
 
 app.get('/api/create', (req, res) => {
   helpers.createRoom(req, res);

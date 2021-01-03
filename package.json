@@ -21,6 +21,7 @@
   "homepage": "https://github.com/jurelik/wesequence-be#readme",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
+    "cors": "^2.8.5",
     "dotenv-flow": "^3.2.0",
     "express": "^4.17.1",
     "install": "^0.13.0",
