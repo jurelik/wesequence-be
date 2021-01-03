@@ -1,12 +1,37 @@
 require('dotenv-flow').config();
+const express = require('express');
+const app = express();
 const WebSocket = require('ws');
 const { Sequelize } = require('sequelize');
 let db = require('./db');
 const helpers = require('./helpers');
 
-const wss = new WebSocket.Server({ port: process.env.PORT  });
-
 //helpers.dbINIT(); //Uncomment only when initialising db locally
+
+const server = app.listen(process.env.PORT, () => {
+  console.log('Server is listening on port ' + process.env.PORT + '.');
+});
+
+const wss = new WebSocket.Server({ server, path: '/ws' });
+
+//Rewrite of the ws shouldHandle logic to handle a custom path with rooms after
+WebSocket.Server.prototype.shouldHandle = function shouldHandle(req) {
+  if (req.url.startsWith(this.options.path)) {
+    //Delete the path portion of the url
+    req.url = req.url.substr(this.options.path.length);
+    return true;
+  }
+
+  return false;
+}
+
+app.get('/api/create', (req, res) => {
+  helpers.createRoom(req, res);
+});
+
+app.get('/', (req, res) => {
+  res.end('Hello there, fancy seeing you here!');
+});
 
 wss.on('connection', async (ws, req) => {
   const room = req.url.substr(1);
@@ -85,6 +110,5 @@ wss.on('connection', async (ws, req) => {
   })
 });
 
-wss.on('listening', async () => {
-  console.log('Server is listening on port ' + process.env.PORT + '.');
-})
+//wss.on('listening', async () => {
+//})

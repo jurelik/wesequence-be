@@ -61,6 +61,30 @@ const sendToRoomAll = (payload, ws) => {
   }
 }
 
+const createRoom = async (req, res) => {
+  const t = await db.transaction();
+
+  try {
+    const name = nanoid(9);
+    const room = await db.query(`INSERT INTO rooms (name, "createdAt", "updatedAt") VALUES ('${name}', NOW(), NOW()) RETURNING id`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await db.query(`INSERT INTO scenes ("roomId", "createdAt", "updatedAt") VALUES (${room[0][0].id}, NOW(), NOW())`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await t.commit();
+
+    res.end(JSON.stringify({
+      type: 'SUCCESS',
+      name
+    }));
+  }
+  catch (err) {
+    await t.rollback();
+    res.end(JSON.stringify({
+      type: 'ERROR',
+      err
+    }));
+    console.log(err);
+  }
+}
+
 const changeTempo = async (tempo, ws) => {
   const t = await db.transaction();
 
@@ -82,7 +106,6 @@ const changeTempo = async (tempo, ws) => {
     await t.rollback();
     console.log(err);
   }
-
 }
 
 const changeSound = async (data, ws) => {
@@ -256,6 +279,7 @@ module.exports = {
   stringToArraybuffer,
   sendToRoom,
   sendToRoomAll,
+  createRoom,
   changeTempo,
   changeSound,
   changeGain,
