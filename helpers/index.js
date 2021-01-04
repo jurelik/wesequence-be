@@ -5,7 +5,6 @@ const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
 const rooms = { //Global rooms object
-  test: []
 }
 
 //Init connection to AWS S3

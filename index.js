@@ -76,10 +76,10 @@ wss.on('connection', async (ws, req) => {
       type: 'INIT',
       err
     }));
-    console.log(err);
+    ws.close();
   }
 
-  ws.on('message', function incoming(_data) {
+  ws.on('message', (_data) => {
     const data = JSON.parse(_data);
 
     switch (data.type) {
@@ -113,8 +113,17 @@ wss.on('connection', async (ws, req) => {
   });
 
   ws.on('close', () => {
-    helpers.rooms.test.splice(helpers.rooms.test.indexOf(ws), 1);
-  })
+    const room = helpers.rooms[ws.room];
+
+    if (room) {
+      room.splice(room.indexOf(ws), 1);
+
+      //Check if room is empty and delete if so
+      if (room.length === 0) {
+        delete helpers.rooms[ws.room];
+      }
+    }
+  });
 });
 
 //wss.on('listening', async () => {
