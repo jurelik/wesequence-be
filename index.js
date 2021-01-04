@@ -66,12 +66,16 @@ wss.on('connection', async (ws, req) => {
     }
 
     ws.send(JSON.stringify({
-      type: 'init',
+      type: 'INIT',
       tempo,
       scenes
     }));
   }
   catch (err) {
+    ws.send(JSON.stringify({
+      type: 'INIT',
+      err
+    }));
     console.log(err);
   }
 
