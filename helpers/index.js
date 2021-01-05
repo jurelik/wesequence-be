@@ -113,12 +113,25 @@ const changeSound = async (data, ws) => {
   try {
     const arraybuffer = stringToArraybuffer(data.arraybuffer);
 
+    //Get filetype
+    let extension;
+
+    if (data.fileType === 'audio/wav') {
+      extension = 'wav'
+    }
+    else if (data.fileType === 'audio/mpeg') {
+      extension = 'mp3'
+    }
+    else {
+      throw 'Wrong file type.'
+    }
+
     //Check if the file is bigger then 2MB
     if (arraybuffer.byteLength > 2000000) {
       throw 'File too big to upload.'
     }
 
-    const key = `${nanoid()}.wav`;
+    const key = `${nanoid()}.${extension}`;
     const bucketName = 'postead'
 
     //Upload to s3
