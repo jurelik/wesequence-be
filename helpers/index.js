@@ -1,11 +1,11 @@
 const { Sequelize } = require('sequelize');
 const { S3, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { nanoid } = require('nanoid');
+const { decode, encode } = require('base64-arraybuffer')
 const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
-const rooms = { //Global rooms object
-}
+const rooms = {} //Global rooms object
 
 //Init connection to AWS S3
 const REGION = 'eu-west-2';
@@ -34,16 +34,8 @@ const dbINIT = () => {
   });
 }
 
-// Taken from: https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
 const stringToArraybuffer = (str) => {
-  var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
-  var bufView = new Uint16Array(buf);
-
-  for (var i=0, strLen=str.length; i < strLen; i++) {
-    bufView[i] = str.charCodeAt(i);
-  }
-
-  return buf;
+  return decode(str);
 }
 
 const sendToRoom = (payload, ws) => {
@@ -111,7 +103,7 @@ const changeSound = async (data, ws) => {
   const t = await db.transaction();
 
   try {
-    const arraybuffer = stringToArraybuffer(data.arraybuffer);
+    const arraybuffer = await stringToArraybuffer(data.arraybuffer);
 
     //Get filetype
     let extension;
