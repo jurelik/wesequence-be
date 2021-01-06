@@ -38,6 +38,19 @@ const stringToArraybuffer = (str) => {
   return decode(str);
 }
 
+const closeConnection = (ws) => {
+  const room = rooms[ws.room];
+
+  if (room) {
+    room.splice(room.indexOf(ws), 1);
+
+    //Check if room is empty and delete if so
+    if (room.length === 0) {
+      delete rooms[ws.room];
+    }
+  }
+}
+
 const sendToRoom = (payload, ws) => {
   for (const socket of rooms[ws.room]) {
     if (socket !== ws) {
@@ -281,6 +294,7 @@ module.exports = {
   rooms,
   dbINIT,
   stringToArraybuffer,
+  closeConnection,
   sendToRoom,
   sendToRoomAll,
   createRoom,

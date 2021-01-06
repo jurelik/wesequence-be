@@ -36,7 +36,9 @@ app.get('/', (req, res) => {
   res.end('Hello there, fancy seeing you here!');
 });
 
+
 wss.on('connection', async (ws, req) => {
+  ws.isAlive = true;
   const room = req.url.substr(1);
 
   try {
@@ -83,6 +85,9 @@ wss.on('connection', async (ws, req) => {
     const data = JSON.parse(_data);
 
     switch (data.type) {
+      case 'pong':
+        ws.isAlive = true;
+        break;
       case 'SEQ_BUTTON_PRESS':
         helpers.seqButtonPress(data, ws);
         break;
@@ -113,18 +118,28 @@ wss.on('connection', async (ws, req) => {
   });
 
   ws.on('close', () => {
-    const room = helpers.rooms[ws.room];
-
-    if (room) {
-      room.splice(room.indexOf(ws), 1);
-
-      //Check if room is empty and delete if so
-      if (room.length === 0) {
-        delete helpers.rooms[ws.room];
-      }
-    }
+    helpers.closeConnection(ws);
   });
 });
 
-//wss.on('listening', async () => {
-//})
+//Keep connection alive because Heroku automatically terminates a connection after 55 seconds
+//Check if the connection is still alive in the process and close if not
+const interval = setInterval(() => {
+  for (const room in helpers.rooms) {
+    helpers.rooms[room].forEach(ws => {
+      if (!ws.isAlive) {
+        ws.close();
+        return helpers.closeConnection(ws);
+      }
+
+      ws.isAlive = false;
+      ws.send(JSON.stringify({
+        type: 'ping'
+      }));
+    })
+  }
+}, 30000)
+
+wss.on('close', () => {
+  clearInterval(interval);
+})
