@@ -2,6 +2,7 @@ require('dotenv-flow').config();
 const express = require('express');
 var cors = require('cors');
 const app = express();
+const scribble = require('scribbletune');
 const WebSocket = require('ws');
 const { Sequelize } = require('sequelize');
 let db = require('./db');
@@ -36,6 +37,22 @@ app.get('/', (req, res) => {
   res.end('Hello there, fancy seeing you here!');
 });
 
+app.get('/midi', (req, res) => {
+  createMIDI(`x---x---x---x---`, 'kick');
+  res.download(`./kick.mid`);
+});
+
+const createMIDI = (pattern, name) => {
+  // Create a clip that plays the middle C
+  const clip = scribble.clip({
+    notes: 'c4',
+    subdiv: '16n',
+    pattern
+  });
+
+  // Render a MIDI file of this clip
+  scribble.midi(clip, `${name}.mid`);
+}
 
 wss.on('connection', async (ws, req) => {
   ws.isAlive = true;

@@ -6,3 +6,4 @@ tags.temp
 *.tmp
 .env.development
 .env.production
+*.mid
