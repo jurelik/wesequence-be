@@ -4,6 +4,7 @@ const { nanoid } = require('nanoid');
 const { decode, encode } = require('base64-arraybuffer')
 const scribble = require('scribbletune');
 const fetch = require('node-fetch');
+const tar = require('tar');
 const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
@@ -70,38 +71,56 @@ const sendToRoomAll = (payload, ws) => {
 const handleDownload = async (req, res) => {
   const t = await db.transaction();
   const room = req.params.room;
-  if(!fs.existsSync(`./${room}`)) {
-    fs.mkdirSync(`./${room}`);
+  if(!fs.existsSync(`./temp/${room}`)) {
+    fs.mkdirSync(`./temp/${room}`);
   }
 
   try {
     const scenes = await db.query(`SELECT s.id FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
-    console.log(scenes);
 
+    //Create a folder for the room that includes midi and sound files
     for (const scene of scenes) {
-      fs.mkdirSync(`./${room}/${scene.id}`);
+      fs.mkdirSync(`./temp/${room}/${scene.id}`);
       const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
-      console.log(tracks);
 
       for (const track of tracks) {
         const pattern = convertSequence(track.sequence);
-        createMIDI(pattern, track.gain, `./${room}/${scene.id}/${track.name}.mid`)
+        createMIDI(pattern, track.gain, `./temp/${room}/${scene.id}/${track.name}.mid`)
 
         if (track.url) {
           const fileFormat = track.url.substr(-4);
           const _res = await fetch(track.url);
-          const dest = fs.createWriteStream(`./${room}/${scene.id}/${track.name}${fileFormat}`);
+          const dest = fs.createWriteStream(`./temp/${room}/${scene.id}/${track.name}${fileFormat}`);
           await _res.body.pipe(dest);
         }
       }
     }
-    //createMIDI(`x---x---x---x---`, 'kick');
-    //const _res = await fetch('https://postead.s3.eu-west-2.amazonaws.com/kick.wav');
-    //const dest = fs.createWriteStream('./kick.wav');
-    //await _res.body.pipe(dest);
+
+    //Create a tar.gz file
+    await tar.c({
+      gzip: true,
+      file: `./temp/${room}.tar.gz`,
+      C: 'temp'
+    }, [`./${room}`]);
+
+    const tarFile = fs.readFileSync(`./temp/${room}.tar.gz`)
+
+    //Upload to AWS
+    const key = `${nanoid(6)}-${room}.tar.gz`;
+    const bucketName = 'postead'
+
+    //Upload to s3
+    await s3.send(new PutObjectCommand({ Bucket: 'postead', Key: key, Body: tarFile }));
+    const fileURL = `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
+
+    //Delete local files
+    fs.rmdirSync(`./temp/${room}`, { recursive: true });
+    fs.unlinkSync(`./temp/${room}.tar.gz`);
+
+    await db.query(`UPDATE rooms SET url = '${fileURL}', "lastUpload" = NOW(), "updatedAt" = NOW() WHERE name = '${room}'`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+
     await t.commit();
-    res.end('success')
-    //res.download(`./kick.mid`);
+    res.redirect(fileURL);
   }
   catch (err) {
     await t.rollback();

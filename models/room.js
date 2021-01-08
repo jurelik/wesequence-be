@@ -23,6 +23,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 120
+    },
+    url: {
+      type: DataTypes.STRING,
+      defaultValue: null
+    },
+    lastUpload: {
+      type: DataTypes.DATE,
+      defaultValue: null
     }
   }, {
     sequelize,

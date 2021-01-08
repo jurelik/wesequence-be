@@ -33,6 +33,7 @@
     "pg-hstore": "^2.3.3",
     "scribbletune": "^3.15.0",
     "sequelize": "^6.3.5",
+    "tar": "^6.1.0",
     "ws": "^7.4.1"
   },
   "devDependencies": {
