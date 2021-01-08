@@ -2,6 +2,8 @@ const { Sequelize } = require('sequelize');
 const { S3, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { nanoid } = require('nanoid');
 const { decode, encode } = require('base64-arraybuffer')
+const scribble = require('scribbletune');
+const fetch = require('node-fetch');
 const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
@@ -64,6 +66,75 @@ const sendToRoomAll = (payload, ws) => {
     socket.send(JSON.stringify(payload));
   }
 }
+
+const handleDownload = async (req, res) => {
+  const t = await db.transaction();
+  const room = req.params.room;
+  if(!fs.existsSync(`./${room}`)) {
+    fs.mkdirSync(`./${room}`);
+  }
+
+  try {
+    const scenes = await db.query(`SELECT s.id FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+    console.log(scenes);
+
+    for (const scene of scenes) {
+      fs.mkdirSync(`./${room}/${scene.id}`);
+      const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+      console.log(tracks);
+
+      for (const track of tracks) {
+        const pattern = convertSequence(track.sequence);
+        createMIDI(pattern, track.gain, `./${room}/${scene.id}/${track.name}.mid`)
+
+        if (track.url) {
+          const fileFormat = track.url.substr(-4);
+          const _res = await fetch(track.url);
+          const dest = fs.createWriteStream(`./${room}/${scene.id}/${track.name}${fileFormat}`);
+          await _res.body.pipe(dest);
+        }
+      }
+    }
+    //createMIDI(`x---x---x---x---`, 'kick');
+    //const _res = await fetch('https://postead.s3.eu-west-2.amazonaws.com/kick.wav');
+    //const dest = fs.createWriteStream('./kick.wav');
+    //await _res.body.pipe(dest);
+    await t.commit();
+    res.end('success')
+    //res.download(`./kick.mid`);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err)
+    res.end('error')
+  }
+}
+
+const convertSequence = (sequence) => {
+  const convertedSequence = sequence.map(step => {
+    if (step === 1) {
+      return 'x';
+    }
+    else {
+      return '-';
+    }
+  });
+  return convertedSequence.join('');
+}
+
+const createMIDI = (pattern, amp, path) => {
+  // Create a clip that plays the middle C
+  const clip = scribble.clip({
+    notes: 'c4',
+    subdiv: '16n',
+    pattern,
+    amp
+  });
+
+  // Render a MIDI file of this clip
+  scribble.midi(clip, path);
+}
+
 
 const createRoom = async (req, res) => {
   const t = await db.transaction();
@@ -297,6 +368,7 @@ module.exports = {
   closeConnection,
   sendToRoom,
   sendToRoomAll,
+  handleDownload,
   createRoom,
   changeTempo,
   changeSound,
