@@ -1,5 +1,5 @@
 const { Sequelize } = require('sequelize');
-const { S3, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { nanoid } = require('nanoid');
 const { decode, encode } = require('base64-arraybuffer')
 const scribble = require('scribbletune');
@@ -12,6 +12,7 @@ const rooms = {} //Global rooms object
 
 //Init connection to AWS S3
 const REGION = 'eu-west-2';
+const bucketName = 'postead';
 const s3 = new S3({ region: REGION });
 
 const dbINIT = () => {
@@ -37,9 +38,99 @@ const dbINIT = () => {
   });
 }
 
+//UTILS
+
 const stringToArraybuffer = (str) => {
   return decode(str);
 }
+
+const createPackage = async (room, t) => {
+  try {
+    const scenes = await db.query(`SELECT s.id FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+
+    //Create a folder for the room that includes midi and sound files
+    for (const scene of scenes) {
+      fs.mkdirSync(`./temp/${room}/${scene.id}`);
+      const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+
+      for (const track of tracks) {
+        const pattern = convertSequence(track.sequence);
+        createMIDI(pattern, track.gain, `./temp/${room}/${scene.id}/${track.name}.mid`)
+
+        if (track.url) {
+          const fileFormat = track.url.substr(-4);
+          const _res = await fetch(track.url);
+          const dest = fs.createWriteStream(`./temp/${room}/${scene.id}/${track.name}${fileFormat}`);
+          await _res.body.pipe(dest);
+        }
+      }
+    }
+
+    //Create a tar.gz file
+    await tar.c({
+      gzip: true,
+      file: `./temp/${room}.tar.gz`,
+      C: 'temp'
+    }, [`./${room}`]);
+
+    return fs.readFileSync(`./temp/${room}.tar.gz`)
+  }
+  catch (err) {
+    console.log(err);
+    throw err;
+  }
+}
+
+const uploadToS3 = async (file, extension, name, length) => {
+  try {
+    //Upload to AWS
+    const key = `${length ? nanoid(length) : nanoid()}${name ? `-${name}` : ''}.${extension}`;
+
+    //Upload to s3
+    await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: file }));
+    return `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
+  }
+  catch (err) {
+    throw err;
+  }
+}
+
+const deleteFromS3 = async (key) => {
+  try {
+    //Delete from s3
+    await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }));
+  }
+  catch (err) {
+    throw err;
+  }
+}
+
+const convertSequence = (sequence) => {
+  const convertedSequence = sequence.map(step => {
+    if (step === 1) {
+      return 'x';
+    }
+    else {
+      return '-';
+    }
+  });
+  return convertedSequence.join('');
+}
+
+const createMIDI = (pattern, amp, path) => {
+  // Create a clip that plays the middle C
+  const clip = scribble.clip({
+    notes: 'c4',
+    subdiv: '16n',
+    pattern,
+    amp
+  });
+
+  // Render a MIDI file of this clip
+  scribble.midi(clip, path);
+}
+
+//HELPERS
 
 const closeConnection = (ws) => {
   const room = rooms[ws.room];
@@ -72,10 +163,6 @@ const handleDownload = async (req, res) => {
   const t = await db.transaction();
   const room = req.params.room;
 
-  if(!fs.existsSync(`./temp/${room}`)) {
-    fs.mkdirSync(`./temp/${room}`);
-  }
-
   try {
     //Check if a recently uploaded file already exists
     const _room = await db.query(`SELECT url FROM rooms WHERE name = '${room}' AND "updatedAt" = "lastUpload"`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
@@ -85,42 +172,15 @@ const handleDownload = async (req, res) => {
       return res.redirect(_room[0].url);
     }
 
-    const scenes = await db.query(`SELECT s.id FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
-
-    //Create a folder for the room that includes midi and sound files
-    for (const scene of scenes) {
-      fs.mkdirSync(`./temp/${room}/${scene.id}`);
-      const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
-
-      for (const track of tracks) {
-        const pattern = convertSequence(track.sequence);
-        createMIDI(pattern, track.gain, `./temp/${room}/${scene.id}/${track.name}.mid`)
-
-        if (track.url) {
-          const fileFormat = track.url.substr(-4);
-          const _res = await fetch(track.url);
-          const dest = fs.createWriteStream(`./temp/${room}/${scene.id}/${track.name}${fileFormat}`);
-          await _res.body.pipe(dest);
-        }
-      }
+    //Create a temp folder
+    if(fs.existsSync(`./temp/${room}`)) {
+      throw "Please try again.";
     }
+    fs.mkdirSync(`./temp/${room}`);
 
-    //Create a tar.gz file
-    await tar.c({
-      gzip: true,
-      file: `./temp/${room}.tar.gz`,
-      C: 'temp'
-    }, [`./${room}`]);
+    const tarFile = await createPackage(room, t);
 
-    const tarFile = fs.readFileSync(`./temp/${room}.tar.gz`)
-
-    //Upload to AWS
-    const key = `${nanoid(6)}-${room}.tar.gz`;
-    const bucketName = 'postead'
-
-    //Upload to s3
-    await s3.send(new PutObjectCommand({ Bucket: 'postead', Key: key, Body: tarFile }));
-    const fileURL = `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
+    const fileURL = await uploadToS3(tarFile, 'tar.gz', room, 6);
 
     //Delete local files
     fs.rmdirSync(`./temp/${room}`, { recursive: true });
@@ -134,35 +194,12 @@ const handleDownload = async (req, res) => {
   catch (err) {
     await t.rollback();
     console.log(err)
-    res.end('error')
+    res.end(JSON.stringify({
+      type: 'error',
+      err
+    }))
   }
 }
-
-const convertSequence = (sequence) => {
-  const convertedSequence = sequence.map(step => {
-    if (step === 1) {
-      return 'x';
-    }
-    else {
-      return '-';
-    }
-  });
-  return convertedSequence.join('');
-}
-
-const createMIDI = (pattern, amp, path) => {
-  // Create a clip that plays the middle C
-  const clip = scribble.clip({
-    notes: 'c4',
-    subdiv: '16n',
-    pattern,
-    amp
-  });
-
-  // Render a MIDI file of this clip
-  scribble.midi(clip, path);
-}
-
 
 const createRoom = async (req, res) => {
   const t = await db.transaction();
@@ -215,7 +252,7 @@ const changeSound = async (data, ws) => {
   const t = await db.transaction();
 
   try {
-    const arraybuffer = await stringToArraybuffer(data.arraybuffer);
+    const arraybuffer = stringToArraybuffer(data.arraybuffer);
 
     //Get filetype
     let extension;
@@ -235,12 +272,7 @@ const changeSound = async (data, ws) => {
       throw 'File too big to upload.'
     }
 
-    const key = `${nanoid()}.${extension}`;
-    const bucketName = 'postead'
-
-    //Upload to s3
-    await s3.send(new PutObjectCommand({ Bucket: 'postead', Key: key, Body: arraybuffer }));
-    const fileURL = `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
+    const fileURL = await uploadToS3(arraybuffer, extension)
 
     //Update db
     await db.query(`UPDATE tracks SET url = '${fileURL}' WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
@@ -286,9 +318,6 @@ const changeGain = async (data, ws) => {
     await t.rollback();
     console.log(err);
   }
-}
-
-const updateRoom = (roomId, t) => {
 }
 
 const seqButtonPress = async (data, ws) => {
@@ -421,7 +450,6 @@ const deleteScene = async (data, ws) => {
 module.exports = {
   rooms,
   dbINIT,
-  stringToArraybuffer,
   closeConnection,
   sendToRoom,
   sendToRoomAll,
