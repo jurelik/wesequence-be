@@ -36,7 +36,7 @@ app.get('/', (req, res) => {
   res.end('Hello there, fancy seeing you here!');
 });
 
-app.get('/midi/:room', async (req, res) => {
+app.get('/api/download/:room', async (req, res) => {
   helpers.handleDownload(req, res);
 });
 

@@ -81,10 +81,10 @@ const createPackage = async (room, t) => {
   }
 }
 
-const uploadToS3 = async (file, extension, name, length) => {
+const uploadSoundToS3 = async (file, extension) => {
   try {
     //Upload to AWS
-    const key = `${length ? nanoid(length) : nanoid()}${name ? `-${name}` : ''}.${extension}`;
+    const key = `${nanoid(9)}.${extension}`;
 
     //Upload to s3
     await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: file }));
@@ -95,10 +95,37 @@ const uploadToS3 = async (file, extension, name, length) => {
   }
 }
 
-const deleteFromS3 = async (key) => {
+const deleteSoundFromS3 = async (trackId, t) => {
   try {
+    const track = await db.query(`SELECT url FROM tracks WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+    const key = track[0].url.substr(-13);
+
     //Delete from s3
     await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }));
+  }
+  catch (err) {
+    throw err;
+  }
+}
+
+const uploadTarToS3 = async (room, file) => {
+  try {
+    //Upload to AWS
+    const key = `${room}.tar.gz`;
+
+    //Upload to s3
+    await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: file }));
+    return `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
+  }
+  catch (err) {
+    throw err;
+  }
+}
+
+const deleteTarFromS3 = async (room) => {
+  try {
+    //Delete from s3
+    await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: `${room}.tar.gz` }));
   }
   catch (err) {
     throw err;
@@ -180,7 +207,8 @@ const handleDownload = async (req, res) => {
 
     const tarFile = await createPackage(room, t);
 
-    const fileURL = await uploadToS3(tarFile, 'tar.gz', room, 6);
+    await deleteTarFromS3(room);
+    const fileURL = await uploadTarToS3(room, tarFile);
 
     //Delete local files
     fs.rmdirSync(`./temp/${room}`, { recursive: true });
@@ -272,7 +300,8 @@ const changeSound = async (data, ws) => {
       throw 'File too big to upload.'
     }
 
-    const fileURL = await uploadToS3(arraybuffer, extension)
+    await deleteSoundFromS3(data.trackId, t);
+    const fileURL = await uploadSoundToS3(arraybuffer, extension)
 
     //Update db
     await db.query(`UPDATE tracks SET url = '${fileURL}' WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
