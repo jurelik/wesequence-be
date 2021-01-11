@@ -22,7 +22,7 @@ const dbINIT = () => {
     try {
       await db.query(`INSERT INTO rooms (name, "createdAt", "updatedAt") VALUES ('test', NOW(), NOW())`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
       await db.query(`INSERT INTO scenes ("createdAt", "updatedAt", "roomId") VALUES (NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
-      await db.query(`INSERT INTO scenes ("createdAt", "updatedAt", "roomId") VALUES (NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
+      await db.query(`INSERT INTO scenes (name, "createdAt", "updatedAt", "roomId") VALUES ('Test Scene', NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
       await db.query(`INSERT INTO tracks (name, url, sequence, "createdAt", "updatedAt", "sceneId") VALUES ('kick', 'https://postead.s3.eu-west-2.amazonaws.com/kick.wav', ARRAY [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0], NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
       await db.query(`INSERT INTO tracks (name, url, sequence, "createdAt", "updatedAt", "sceneId") VALUES ('hh', 'https://postead.s3.eu-west-2.amazonaws.com/hh.wav', ARRAY [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], NOW(), NOW(), 1)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
       await db.query(`INSERT INTO tracks (name, url, sequence, "createdAt", "updatedAt", "sceneId") VALUES ('hh', 'https://postead.s3.eu-west-2.amazonaws.com/hh.wav', ARRAY [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0], NOW(), NOW(), 2)`, { type: Sequelize.QueryTypes.INSERT, transaction: t  })
@@ -46,21 +46,23 @@ const stringToArraybuffer = (str) => {
 
 const createPackage = async (room, t) => {
   try {
-    const scenes = await db.query(`SELECT s.id FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+    const scenes = await db.query(`SELECT s.id, s.name FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
 
     //Create a folder for the room that includes midi and sound files
     for (const scene of scenes) {
-      fs.mkdirSync(`./temp/${room}/${scene.id}`);
+      const folderName = scene.name ? scene.name : `Scene ${scenes.indexOf(scene) + 1}`;
+
+      fs.mkdirSync(`./temp/${room}/${folderName}`);
       const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
 
       for (const track of tracks) {
         const pattern = convertSequence(track.sequence);
-        createMIDI(pattern, track.gain, `./temp/${room}/${scene.id}/${track.name}.mid`)
+        createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${track.name}.mid`)
 
         if (track.url) {
           const fileFormat = track.url.substr(-4);
           const _res = await fetch(track.url);
-          const dest = fs.createWriteStream(`./temp/${room}/${scene.id}/${track.name}${fileFormat}`);
+          const dest = fs.createWriteStream(`./temp/${room}/${folderName}/${track.name}${fileFormat}`);
           await _res.body.pipe(dest);
         }
       }
@@ -201,7 +203,9 @@ const handleDownload = async (req, res) => {
 
     //Create a temp folder
     if(fs.existsSync(`./temp/${room}`)) {
-      throw "Please try again.";
+      //Delete local files
+      fs.rmdirSync(`./temp/${room}`, { recursive: true });
+      fs.unlinkSync(`./temp/${room}.tar.gz`);
     }
     fs.mkdirSync(`./temp/${room}`);
 

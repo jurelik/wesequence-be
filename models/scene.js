@@ -16,6 +16,10 @@ module.exports = (sequelize, DataTypes) => {
     }
   };
   scene.init({
+    name: {
+      type: DataTypes.STRING,
+      defaultValue: null
+    }
   }, {
     sequelize,
     modelName: 'scene',
