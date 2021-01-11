@@ -44,6 +44,22 @@ const stringToArraybuffer = (str) => {
   return decode(str);
 }
 
+const createFileName = (path, fileName, loopNo) => {
+  //Check if file exists already
+  const exists = fs.existsSync(`${path}${fileName}${loopNo > 0 ? `(${loopNo})` : ''}.mid`);
+  if (exists) {
+    return createFileName(path, fileName, loopNo + 1);
+  }
+  else {
+    if (loopNo === 0) {
+      return fileName;
+    }
+    else {
+      return `${fileName}(${loopNo})`;
+    }
+  }
+}
+
 const createPackage = async (room, t) => {
   try {
     const scenes = await db.query(`SELECT s.id, s.name FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
@@ -57,12 +73,13 @@ const createPackage = async (room, t) => {
 
       for (const track of tracks) {
         const pattern = convertSequence(track.sequence);
-        createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${track.name}.mid`)
+        const fileName = createFileName(`./temp/${room}/${folderName}/`, track.name, 0)
+        createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${fileName}.mid`)
 
         if (track.url) {
           const fileFormat = track.url.substr(-4);
           const _res = await fetch(track.url);
-          const dest = fs.createWriteStream(`./temp/${room}/${folderName}/${track.name}${fileFormat}`);
+          const dest = fs.createWriteStream(`./temp/${room}/${folderName}/${fileName}${fileFormat}`);
           await _res.body.pipe(dest);
         }
       }
