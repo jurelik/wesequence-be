@@ -109,6 +109,9 @@ wss.on('connection', async (ws, req) => {
       case 'DELETE_TRACK':
         helpers.deleteTrack(data, ws);
         break;
+      case 'CHANGE_TRACK_NAME':
+        helpers.changeTrackName(data, ws);
+        break;
       case 'ADD_SCENE':
         helpers.addScene(ws);
         break;

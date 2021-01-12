@@ -447,6 +447,30 @@ const deleteTrack = async (data, ws) => {
   }
 }
 
+const changeTrackName = async (data, ws) => {
+  const t = await db.transaction();
+
+  try {
+    await db.query(`UPDATE tracks SET name = '${data.name}' WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+
+    //Update room
+    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+
+    await t.commit();
+
+    sendToRoom({
+      type: 'CHANGE_TRACK_NAME',
+      sceneId: data.sceneId,
+      trackId: data.trackId,
+      name: data.name
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err)
+  }
+}
+
 const addScene = async (ws) => {
   const t = await db.transaction();
 
@@ -511,6 +535,7 @@ module.exports = {
   seqButtonPress,
   addTrack,
   deleteTrack,
+  changeTrackName,
   addScene,
   deleteScene
 }
