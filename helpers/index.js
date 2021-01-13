@@ -44,6 +44,16 @@ const stringToArraybuffer = (str) => {
   return decode(str);
 }
 
+const updateRoom = async (roomId, t) => {
+  try {
+    //Update room
+    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+  }
+  catch (err) {
+    throw err;
+  }
+}
+
 const createFileName = (path, fileName, loopNo) => {
   //Check if file exists already
   const exists = fs.existsSync(`${path}${fileName}${loopNo > 0 ? `(${loopNo})` : ''}.mid`);
@@ -328,7 +338,7 @@ const changeSound = async (data, ws) => {
     await db.query(`UPDATE tracks SET url = '${fileURL}' WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -353,7 +363,7 @@ const changeGain = async (data, ws) => {
     await db.query(`UPDATE tracks SET gain = ${data.gain} WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -377,7 +387,7 @@ const seqButtonPress = async (data, ws) => {
     await db.query(`UPDATE tracks SET sequence[${data.position + 1}] = CASE WHEN sequence[${data.position + 1}] = 0 THEN 1 ELSE 0 END WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -407,7 +417,7 @@ const addTrack = async (data, ws) => {
     const newTrack = newTrackQuery[0][0];
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -431,7 +441,7 @@ const deleteTrack = async (data, ws) => {
     await db.query(`DELETE FROM tracks WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -454,7 +464,7 @@ const changeTrackName = async (data, ws) => {
     await db.query(`UPDATE tracks SET name = '${data.name}' WHERE id = ${data.trackId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -478,7 +488,7 @@ const addScene = async (ws) => {
     const scene = await db.query(`INSERT INTO scenes ("roomId", "createdAt", "updatedAt") VALUES (${ws.roomId}, NOW(), NOW()) RETURNING id`, { type: Sequelize.QueryTypes.INSERT, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
@@ -506,7 +516,7 @@ const deleteScene = async (data, ws) => {
     await db.query(`DELETE FROM scenes WHERE id = ${data.sceneId}`, { type: Sequelize.QueryTypes.DELETE, transaction: t });
 
     //Update room
-    await db.query(`UPDATE rooms SET "updatedAt" = NOW() WHERE id = ${ws.roomId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+    await updateRoom(ws.roomId, t);
 
     await t.commit();
 
