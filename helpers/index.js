@@ -531,6 +531,29 @@ const deleteScene = async (data, ws) => {
   }
 }
 
+const changeSceneName = async (data, ws) => {
+  const t = await db.transaction();
+
+  try {
+    await db.query(`UPDATE scenes SET name = '${data.name}' WHERE id = ${data.sceneId}`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
+
+    //Update room
+    await updateRoom(ws.roomId, t);
+
+    await t.commit();
+
+    sendToRoom({
+      type: 'CHANGE_SCENE_NAME',
+      sceneId: data.sceneId,
+      name: data.name
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err);
+  }
+}
+
 module.exports = {
   rooms,
   dbINIT,
@@ -547,5 +570,6 @@ module.exports = {
   deleteTrack,
   changeTrackName,
   addScene,
-  deleteScene
+  deleteScene,
+  changeSceneName
 }

@@ -118,6 +118,9 @@ wss.on('connection', async (ws, req) => {
       case 'DELETE_SCENE':
         helpers.deleteScene(data, ws);
         break;
+      case 'CHANGE_SCENE_NAME':
+        helpers.changeSceneName(data, ws);
+        break;
       default:
         return null;
     }
