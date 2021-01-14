@@ -5,6 +5,7 @@ const { decode, encode } = require('base64-arraybuffer')
 const scribble = require('scribbletune');
 const fetch = require('node-fetch');
 const tar = require('tar');
+const archiver = require('archiver');
 const fs = require('fs');
 const db = require('../db');
 const models = require('../models');
@@ -70,44 +71,68 @@ const createFileName = (path, fileName, loopNo) => {
   }
 }
 
-const createPackage = async (room, t) => {
-  try {
-    const scenes = await db.query(`SELECT s.id, s.name FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+const createSoundFile = (url, room, folderName, fileName) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const fileFormat = url.substr(-4);
+      const _res = await fetch(url);
+      const dest = fs.createWriteStream(`./temp/${room}/${folderName}/${fileName}${fileFormat}`);
 
-    //Create a folder for the room that includes midi and sound files
-    for (const scene of scenes) {
-      const folderName = scene.name ? scene.name : `Scene ${scenes.indexOf(scene) + 1}`;
+      dest.on('finish', () => {
+        console.log('WAV generated: ' + `./temp/${room}/${folderName}/${fileName}${fileFormat}`)
+        resolve();
+      });
 
-      fs.mkdirSync(`./temp/${room}/${folderName}`);
-      const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+      _res.body.pipe(dest);
+    }
+    catch (err) {
+      reject(err);
+    }
+  })
+}
 
-      for (const track of tracks) {
-        const pattern = convertSequence(track.sequence);
-        const fileName = createFileName(`./temp/${room}/${folderName}/`, track.name, 0)
-        createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${fileName}.mid`)
+const createPackage = (room, t) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const scenes = await db.query(`SELECT s.id, s.name FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
 
-        if (track.url) {
-          const fileFormat = track.url.substr(-4);
-          const _res = await fetch(track.url);
-          const dest = fs.createWriteStream(`./temp/${room}/${folderName}/${fileName}${fileFormat}`);
-          await _res.body.pipe(dest);
+      //Create a folder for the room that includes midi and sound files
+      for (const scene of scenes) {
+        const folderName = scene.name ? scene.name : `Scene ${scenes.indexOf(scene) + 1}`;
+
+        fs.mkdirSync(`./temp/${room}/${folderName}`);
+        const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+
+        for (const track of tracks) {
+          const pattern = convertSequence(track.sequence);
+          const fileName = createFileName(`./temp/${room}/${folderName}/`, track.name, 0)
+          createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${fileName}.mid`)
+
+          if (track.url) {
+            await createSoundFile(track.url, room, folderName, fileName);
+          }
         }
       }
+
+      //Create a zip file
+      const output = fs.createWriteStream(`./temp/${room}.zip`);
+      const archive = archiver('zip', {
+        zlib: { level: 9 }
+      });
+
+      output.on('finish', () => {
+        resolve();
+      });
+
+      archive.pipe(output);
+      archive.directory(`./temp/${room}/`, `${room}`);
+      archive.finalize();
     }
-
-    //Create a tar.gz file
-    await tar.c({
-      gzip: true,
-      file: `./temp/${room}.tar.gz`,
-      C: 'temp'
-    }, [`./${room}`]);
-
-    return fs.readFileSync(`./temp/${room}.tar.gz`)
-  }
-  catch (err) {
-    console.log(err);
-    throw err;
-  }
+    catch (err) {
+      console.log(err);
+      reject (err);
+    }
+  })
 }
 
 const uploadSoundToS3 = async (file, extension) => {
@@ -137,13 +162,14 @@ const deleteSoundFromS3 = async (trackId, t) => {
   }
 }
 
-const uploadTarToS3 = async (room, file) => {
+const uploadTarToS3 = async (room) => {
   try {
     //Upload to AWS
-    const key = `${room}.tar.gz`;
+    const key = `${room}.zip`;
+    const _file = fs.readFileSync(`./temp/${room}.zip`)
 
     //Upload to s3
-    await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: file }));
+    await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: _file }));
     return `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
   }
   catch (err) {
@@ -154,7 +180,7 @@ const uploadTarToS3 = async (room, file) => {
 const deleteTarFromS3 = async (room) => {
   try {
     //Delete from s3
-    await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: `${room}.tar.gz` }));
+    await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: `${room}.zip` }));
   }
   catch (err) {
     throw err;
@@ -232,18 +258,18 @@ const handleDownload = async (req, res) => {
     if(fs.existsSync(`./temp/${room}`)) {
       //Delete local files
       fs.rmdirSync(`./temp/${room}`, { recursive: true });
-      fs.unlinkSync(`./temp/${room}.tar.gz`);
+      fs.unlinkSync(`./temp/${room}.zip`);
     }
     fs.mkdirSync(`./temp/${room}`);
 
-    const tarFile = await createPackage(room, t);
+    await createPackage(room, t);
 
     await deleteTarFromS3(room);
-    const fileURL = await uploadTarToS3(room, tarFile);
+    const fileURL = await uploadTarToS3(room);
 
     //Delete local files
     fs.rmdirSync(`./temp/${room}`, { recursive: true });
-    fs.unlinkSync(`./temp/${room}.tar.gz`);
+    fs.unlinkSync(`./temp/${room}.zip`);
 
     await db.query(`UPDATE rooms SET url = '${fileURL}', "lastUpload" = NOW(), "updatedAt" = NOW() WHERE name = '${room}'`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
 
