@@ -34,7 +34,6 @@
     "pg-hstore": "^2.3.3",
     "scribbletune": "https://github.com/jurelik/scribbletune.git",
     "sequelize": "^6.3.5",
-    "tar": "^6.1.0",
     "ws": "^7.4.1"
   },
   "devDependencies": {

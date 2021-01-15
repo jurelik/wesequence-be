@@ -113,12 +113,6 @@ const createPackage = (room, t) => {
           }
         }
       }
-      //Create a tar.gz file
-      //await tar.c({
-      //  gzip: true,
-      //  file: `./temp/${room}.tar.gz`,
-      //  C: 'temp'
-      //}, [`./${room}`]);
 
       //Create a zip file
       const output = fs.createWriteStream(`./temp/${room}.zip`);
