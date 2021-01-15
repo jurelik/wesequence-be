@@ -106,13 +106,19 @@ const createPackage = (room, t) => {
         for (const track of tracks) {
           const pattern = convertSequence(track.sequence);
           const fileName = createFileName(`./temp/${room}/${folderName}/`, track.name, 0)
-          createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${fileName}.mid`)
+          createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${fileName}.mid`, fileName)
 
           if (track.url) {
             await createSoundFile(track.url, room, folderName, fileName);
           }
         }
       }
+      //Create a tar.gz file
+      //await tar.c({
+      //  gzip: true,
+      //  file: `./temp/${room}.tar.gz`,
+      //  C: 'temp'
+      //}, [`./${room}`]);
 
       //Create a zip file
       const output = fs.createWriteStream(`./temp/${room}.zip`);
@@ -199,7 +205,7 @@ const convertSequence = (sequence) => {
   return convertedSequence.join('');
 }
 
-const createMIDI = (pattern, amp, path) => {
+const createMIDI = (pattern, amp, path, trackName) => {
   // Create a clip that plays the middle C
   const clip = scribble.clip({
     notes: 'c4',
@@ -209,7 +215,7 @@ const createMIDI = (pattern, amp, path) => {
   });
 
   // Render a MIDI file of this clip
-  scribble.midi(clip, path);
+  scribble.midi(clip, path, null, trackName);
 }
 
 //HELPERS
