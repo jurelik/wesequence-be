@@ -41,48 +41,7 @@ app.get('/api/download/:room', async (req, res) => {
 });
 
 wss.on('connection', async (ws, req) => {
-  ws.isAlive = true;
-  const room = req.url.substr(1);
-
-  try {
-    //Check if room exists & get tempo
-    const rooms = await db.query(`SELECT id, tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
-    if (rooms.length === 0) {
-      throw 'Room not found.'
-    }
-    const tempo = rooms[0].tempo;
-    const roomId = rooms[0].id;
-
-    //Add client to room & room to client
-    if (!helpers.rooms[room]) {
-      //Create room first
-      helpers.rooms[room] = [];
-    }
-    helpers.rooms[room].push(ws);
-    ws.room = room;
-    ws.roomId = roomId;
-
-    //Get all scenes and tracks
-    const scenes = await db.query(`SELECT id, name FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
-
-    for (let scene of scenes) {
-      const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
-      scene.tracks = tracks;
-    }
-
-    ws.send(JSON.stringify({
-      type: 'INIT',
-      tempo,
-      scenes
-    }));
-  }
-  catch (err) {
-    ws.send(JSON.stringify({
-      type: 'INIT',
-      err
-    }));
-    ws.close();
-  }
+  await helpers.handleConnection(ws, req);
 
   ws.on('message', (_data) => {
     const data = JSON.parse(_data);

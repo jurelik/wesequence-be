@@ -4,7 +4,6 @@ const { nanoid } = require('nanoid');
 const { decode, encode } = require('base64-arraybuffer')
 const scribble = require('scribbletune');
 const fetch = require('node-fetch');
-const tar = require('tar');
 const archiver = require('archiver');
 const fs = require('fs');
 const db = require('../db');
@@ -213,6 +212,50 @@ const createMIDI = (pattern, amp, path, trackName) => {
 }
 
 //HELPERS
+const handleConnection = async (ws, req) => {
+  ws.isAlive = true;
+  const room = req.url.substr(1);
+
+  try {
+    //Check if room exists & get tempo
+    const rooms = await db.query(`SELECT id, tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
+    if (rooms.length === 0) {
+      throw 'Room not found.'
+    }
+    const tempo = rooms[0].tempo;
+    const roomId = rooms[0].id;
+
+    //Add client to room & room to client
+    if (!rooms[room]) {
+      //Create room first
+      rooms[room] = [];
+    }
+    rooms[room].push(ws);
+    ws.room = room;
+    ws.roomId = roomId;
+
+    //Get all scenes and tracks
+    const scenes = await db.query(`SELECT id, name FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
+
+    for (let scene of scenes) {
+      const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
+      scene.tracks = tracks;
+    }
+
+    ws.send(JSON.stringify({
+      type: 'INIT',
+      tempo,
+      scenes
+    }));
+  }
+  catch (err) {
+    ws.send(JSON.stringify({
+      type: 'INIT',
+      err
+    }));
+    ws.close();
+  }
+}
 
 const closeConnection = (ws) => {
   const room = rooms[ws.room];
@@ -583,6 +626,7 @@ const changeSceneName = async (data, ws) => {
 module.exports = {
   rooms,
   dbINIT,
+  handleConnection,
   closeConnection,
   sendToRoom,
   sendToRoomAll,
