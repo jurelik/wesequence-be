@@ -218,12 +218,12 @@ const handleConnection = async (ws, req) => {
 
   try {
     //Check if room exists & get tempo
-    const rooms = await db.query(`SELECT id, tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
+    const _rooms = await db.query(`SELECT id, tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
     if (rooms.length === 0) {
       throw 'Room not found.'
     }
-    const tempo = rooms[0].tempo;
-    const roomId = rooms[0].id;
+    const tempo = _rooms[0].tempo;
+    const roomId = _rooms[0].id;
 
     //Add client to room & room to client
     if (!rooms[room]) {
@@ -245,10 +245,17 @@ const handleConnection = async (ws, req) => {
     ws.send(JSON.stringify({
       type: 'INIT',
       tempo,
-      scenes
+      scenes,
+      users: rooms[room].length
     }));
+
+    //Send to other sockets in room
+    sendToRoom({
+      type: 'USER_JOINED',
+    }, ws);
   }
   catch (err) {
+    console.log(err)
     ws.send(JSON.stringify({
       type: 'INIT',
       err
@@ -266,6 +273,12 @@ const closeConnection = (ws) => {
     //Check if room is empty and delete if so
     if (room.length === 0) {
       delete rooms[ws.room];
+    }
+    else {
+      //Send to other sockets in room
+      sendToRoom({
+        type: 'USER_LEFT',
+      }, ws);
     }
   }
 }
