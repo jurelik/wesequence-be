@@ -151,6 +151,9 @@ const uploadSoundToS3 = async (file, extension) => {
 const deleteSoundFromS3 = async (trackId, t) => {
   try {
     const track = await db.query(`SELECT url FROM tracks WHERE id = ${trackId}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+    if (!track[0].url) {
+      return;
+    }
     const key = track[0].url.substr(-13);
 
     //Delete from s3
@@ -236,16 +239,18 @@ const handleConnection = async (ws, req) => {
 
     //Get all scenes and tracks
     const scenes = await db.query(`SELECT id, name FROM scenes WHERE "roomId" = ${roomId} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
+    let tracks = []
 
     for (let scene of scenes) {
-      const tracks = await db.query(`SELECT id, name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
-      scene.tracks = tracks;
+      const _tracks = await db.query(`SELECT id, "sceneId", name, url, sequence, gain FROM tracks WHERE "sceneId" = ${scene.id} ORDER BY id ASC`, { type: Sequelize.QueryTypes.SELECT });
+      tracks = tracks.concat(_tracks);
     }
 
     ws.send(JSON.stringify({
       type: 'INIT',
       tempo,
       scenes,
+      tracks,
       users: rooms[room].length
     }));
 
