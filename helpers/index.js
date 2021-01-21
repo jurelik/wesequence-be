@@ -532,6 +532,7 @@ const deleteTrack = async (data, ws) => {
 
     sendToRoom({
       type: 'DELETE_TRACK',
+      sceneId: data.sceneId,
       trackId: data.trackId
     }, ws);
   }
