@@ -222,7 +222,7 @@ const handleConnection = async (ws, req) => {
   try {
     //Check if room exists & get tempo
     const _rooms = await db.query(`SELECT id, tempo FROM rooms WHERE name = '${room}'`, { type: Sequelize.QueryTypes.SELECT });
-    if (rooms.length === 0) {
+    if (_rooms.length === 0) {
       throw 'Room not found.'
     }
     const tempo = _rooms[0].tempo;
