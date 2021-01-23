@@ -433,7 +433,8 @@ const changeSound = async (data, ws) => {
     sendToRoom({
       type: 'CHANGE_SOUND',
       trackId: data.trackId,
-      arraybuffer: data.arraybuffer
+      arraybuffer: data.arraybuffer,
+      url: fileURL
     }, ws);
   }
   catch (err) {
