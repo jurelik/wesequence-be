@@ -7,3 +7,4 @@ tags.temp
 .env.development
 .env.production
 *.mid
+.DS_Store
