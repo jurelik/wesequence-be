@@ -70,6 +70,22 @@ const createFileName = (path, fileName, loopNo) => {
   }
 }
 
+const checkFolderName = (room, folderName, loopNo) => {
+  //Check if file exists already
+  const exists = fs.existsSync(`./temp/${room}/${folderName}${loopNo > 0 ? `(${loopNo})/` : '/'}`);
+  if (exists) {
+    return checkFolderName(room, folderName, loopNo + 1);
+  }
+  else {
+    if (loopNo === 0) {
+      return folderName;
+    }
+    else {
+      return `${folderName}(${loopNo})`;
+    }
+  }
+}
+
 const createSoundFile = (url, room, folderName, fileName) => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -97,7 +113,8 @@ const createPackage = (room, t) => {
 
       //Create a folder for the room that includes midi and sound files
       for (const scene of scenes) {
-        const folderName = scene.name ? scene.name : `Scene ${scenes.indexOf(scene) + 1}`;
+        const _folderName = scene.name ? scene.name : `Scene ${scenes.indexOf(scene) + 1}`;
+        const folderName = checkFolderName(room, _folderName, 0);
 
         fs.mkdirSync(`./temp/${room}/${folderName}`);
         const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
