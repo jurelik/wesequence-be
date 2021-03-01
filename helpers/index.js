@@ -634,6 +634,30 @@ const deleteScene = async (data, ws) => {
   }
 }
 
+const duplicateScene = async (data, ws) => {
+  const t = await db.transaction();
+
+  try {
+    const scene = await db.query(`INSERT INTO scenes ("name", "roomId", "createdAt", "updatedAt") SELECT name, "roomId", NOW(), NOW() FROM scenes WHERE id = ${data.sceneId} RETURNING id, name, "roomId"`, { type: Sequelize.QueryTypes.INSERT, transaction: t });
+    const tracks = await db.query(`INSERT INTO tracks ("sceneId", name, url, sequence, gain, "createdAt", "updatedAt") SELECT ${scene[0][0].id}, name, url, sequence, gain, NOW(), NOW() FROM tracks WHERE "sceneId" = ${data.sceneId} ORDER BY id ASC RETURNING id, "sceneId", name, url, sequence, gain`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+
+    //Update room
+    await updateRoom(ws.roomId, t);
+
+    await t.commit();
+
+    sendToRoomAll({
+      type: 'DUPLICATE_SCENE',
+      scene: scene[0][0],
+      tracks
+    }, ws);
+  }
+  catch (err) {
+    await t.rollback();
+    console.log(err)
+  }
+}
+
 const changeSceneName = async (data, ws) => {
   const t = await db.transaction();
 
@@ -675,5 +699,6 @@ module.exports = {
   changeTrackName,
   addScene,
   deleteScene,
+  duplicateScene,
   changeSceneName
 }
