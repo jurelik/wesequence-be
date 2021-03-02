@@ -652,7 +652,7 @@ const duplicateScene = async (data, ws) => {
   const t = await db.transaction();
 
   try {
-    const scene = await db.query(`INSERT INTO scenes ("name", "roomId", "createdAt", "updatedAt") SELECT name, "roomId", NOW(), NOW() FROM scenes WHERE id = ${data.sceneId} RETURNING id, name, "roomId"`, { type: Sequelize.QueryTypes.INSERT, transaction: t });
+    const scene = await db.query(`INSERT INTO scenes ("name", "roomId", "createdAt", "updatedAt") SELECT CONCAT(name, ' - Copy'), "roomId", NOW(), NOW() FROM scenes WHERE id = ${data.sceneId} RETURNING id, name, "roomId"`, { type: Sequelize.QueryTypes.INSERT, transaction: t });
     const tracks = await db.query(`INSERT INTO tracks ("sceneId", name, url, sequence, gain, "createdAt", "updatedAt") SELECT ${scene[0][0].id}, name, url, sequence, gain, NOW(), NOW() FROM tracks WHERE "sceneId" = ${data.sceneId} ORDER BY id ASC RETURNING id, "sceneId", name, url, sequence, gain`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
 
     //Update room
