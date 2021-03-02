@@ -6,6 +6,7 @@ const scribble = require('scribbletune');
 const fetch = require('node-fetch');
 const archiver = require('archiver');
 const fs = require('fs');
+const fsp = require('fs/promises');
 const db = require('../db');
 const models = require('../models');
 const rooms = {} //Global rooms object
@@ -54,47 +55,59 @@ const updateRoom = async (roomId, t) => {
   }
 }
 
-const createFileName = (path, fileName, loopNo) => {
-  //Check if file exists already
-  const exists = fs.existsSync(`${path}${fileName}${loopNo > 0 ? `(${loopNo})` : ''}.mid`);
-  if (exists) {
-    return createFileName(path, fileName, loopNo + 1);
-  }
-  else {
-    if (loopNo === 0) {
-      return fileName;
+const createFileName = async (path, fileName, loopNo) => {
+  try {
+    //Check if file exists already
+    let exists = true;
+    await fsp.stat(`${path}${fileName}${loopNo > 0 ? `(${loopNo})` : ''}.mid`).catch(() => { exists = false; });
+    if (exists) {
+      return createFileName(path, fileName, loopNo + 1);
     }
     else {
-      return `${fileName}(${loopNo})`;
+      if (loopNo === 0) {
+        return fileName;
+      }
+      else {
+        return `${fileName}(${loopNo})`;
+      }
     }
+  }
+  catch (err) {
+    throw err;
   }
 }
 
-const checkFolderName = (room, folderName, loopNo) => {
-  //Check if file exists already
-  const exists = fs.existsSync(`./temp/${room}/${folderName}${loopNo > 0 ? `(${loopNo})/` : '/'}`);
-  if (exists) {
-    return checkFolderName(room, folderName, loopNo + 1);
-  }
-  else {
-    if (loopNo === 0) {
-      return folderName;
+const checkFolderName = async (room, rand, folderName, loopNo) => {
+  try {
+    //Check if file exists already
+    let exists = true;
+    await fsp.stat(`./temp/${rand}/${room}/${folderName}${loopNo > 0 ? `(${loopNo})/` : '/'}`).catch(() => { exists = false; });
+    if (exists) {
+      return checkFolderName(room, rand, folderName, loopNo + 1);
     }
     else {
-      return `${folderName}(${loopNo})`;
+      if (loopNo === 0) {
+        return folderName;
+      }
+      else {
+        return `${folderName}(${loopNo})`;
+      }
     }
+  }
+  catch (err) {
+    throw err;
   }
 }
 
-const createSoundFile = (url, room, folderName, fileName) => {
+const createSoundFile = (url, room, rand, folderName, fileName) => {
   return new Promise(async (resolve, reject) => {
     try {
       const fileFormat = url.substr(-4);
       const _res = await fetch(url);
-      const dest = fs.createWriteStream(`./temp/${room}/${folderName}/${fileName}${fileFormat}`);
+      const dest = fs.createWriteStream(`./temp/${rand}/${room}/${folderName}/${fileName}${fileFormat}`);
 
       dest.on('finish', () => {
-        console.log('WAV generated: ' + `./temp/${room}/${folderName}/${fileName}${fileFormat}`)
+        console.log('WAV generated: ' + `./temp/${rand}/${room}/${folderName}/${fileName}${fileFormat}`)
         resolve();
       });
 
@@ -106,32 +119,32 @@ const createSoundFile = (url, room, folderName, fileName) => {
   })
 }
 
-const createPackage = (room, t) => {
+const createPackage = (room, rand, t) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const scenes = await db.query(`SELECT s.id, s.name FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}'`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+      const scenes = await db.query(`SELECT s.id, s.name FROM rooms AS r JOIN scenes AS s ON r.id = s."roomId" WHERE r.name = '${room}' ORDER BY s.id ASC`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
 
       //Create a folder for the room that includes midi and sound files
       for (const scene of scenes) {
         const _folderName = scene.name ? scene.name : `Scene ${scenes.indexOf(scene) + 1}`;
-        const folderName = checkFolderName(room, _folderName, 0);
+        const folderName = await checkFolderName(room, rand, _folderName, 0);
 
-        fs.mkdirSync(`./temp/${room}/${folderName}`);
-        const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id}`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
+        await fsp.mkdir(`./temp/${rand}/${room}/${folderName}`);
+        const tracks = await db.query(`SELECT t.name, t.url, t.sequence, t.gain FROM scenes AS s JOIN tracks AS t ON s.id = t."sceneId" WHERE s.id = ${scene.id} ORDER BY t.id ASC`, { type: Sequelize.QueryTypes.SELECT, transaction: t });
 
         for (const track of tracks) {
           const pattern = convertSequence(track.sequence);
-          const fileName = createFileName(`./temp/${room}/${folderName}/`, track.name, 0)
-          createMIDI(pattern, track.gain, `./temp/${room}/${folderName}/${fileName}.mid`, fileName)
+          const fileName = await createFileName(`./temp/${rand}/${room}/${folderName}/`, track.name, 0)
+          createMIDI(pattern, track.gain, `./temp/${rand}/${room}/${folderName}/${fileName}.mid`, fileName)
 
           if (track.url) {
-            await createSoundFile(track.url, room, folderName, fileName);
+            await createSoundFile(track.url, room, rand, folderName, fileName);
           }
         }
       }
 
       //Create a zip file
-      const output = fs.createWriteStream(`./temp/${room}.zip`);
+      const output = fs.createWriteStream(`./temp/${rand}/${room}.zip`);
       const archive = archiver('zip', {
         zlib: { level: 9 }
       });
@@ -141,7 +154,7 @@ const createPackage = (room, t) => {
       });
 
       archive.pipe(output);
-      archive.directory(`./temp/${room}/`, `${room}`);
+      archive.directory(`./temp/${rand}/${room}/`, `${room}`);
       archive.finalize();
     }
     catch (err) {
@@ -181,11 +194,11 @@ const deleteSoundFromS3 = async (trackId, t) => {
   }
 }
 
-const uploadTarToS3 = async (room) => {
+const uploadTarToS3 = async (room, rand) => {
   try {
     //Upload to AWS
     const key = `${room}.zip`;
-    const _file = fs.readFileSync(`./temp/${room}.zip`)
+    const _file = await fsp.readFile(`./temp/${rand}/${room}.zip`)
 
     //Upload to s3
     await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: _file }));
@@ -333,21 +346,22 @@ const handleDownload = async (req, res) => {
     }
 
     //Create a temp folder
-    if(fs.existsSync(`./temp/${room}`)) {
-      //Delete local files
-      fs.rmdirSync(`./temp/${room}`, { recursive: true });
-      fs.unlinkSync(`./temp/${room}.zip`);
-    }
-    fs.mkdirSync(`./temp/${room}`);
+    const rand = nanoid(9);
+    //if(fs.existsSync(`./temp/${room}`)) {
+    //  //Delete local files
+    //  fs.rmdirSync(`./temp/${room}`, { recursive: true });
+    //  fs.unlinkSync(`./temp/${room}.zip`);
+    //}
+    //fs.mkdirSync(`./temp/${room}`);
+    await fsp.mkdir(`./temp/${rand}/${room}`, { recursive: true });
 
-    await createPackage(room, t);
+    await createPackage(room, rand, t);
 
     await deleteTarFromS3(room);
-    const fileURL = await uploadTarToS3(room);
+    const fileURL = await uploadTarToS3(room, rand);
 
     //Delete local files
-    fs.rmdirSync(`./temp/${room}`, { recursive: true });
-    fs.unlinkSync(`./temp/${room}.zip`);
+    fs.rmdirSync(`./temp/${rand}`, { recursive: true });
 
     await db.query(`UPDATE rooms SET url = '${fileURL}', "lastUpload" = NOW(), "updatedAt" = NOW() WHERE name = '${room}'`, { type: Sequelize.QueryTypes.UPDATE, transaction: t });
 
