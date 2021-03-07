@@ -170,7 +170,9 @@ const uploadSoundToS3 = async (file, extension) => {
     const key = `${nanoid(9)}.${extension}`;
 
     //Upload to s3
-    await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: file }));
+    const res = await s3.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: file }));
+    if (res.$metadata.httpStatusCode !== 200) throw `Error: ${res.$metadata.httpStatusCode}`; //Check for errors during upload
+
     return `https://${bucketName}.s3-${REGION}.amazonaws.com/${key}`;
   }
   catch (err) {
